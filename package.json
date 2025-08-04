@@ -17,7 +17,10 @@
     "validate:html": "html-validate *.html",
     "serve:dist": "live-server dist --port=8080",
     "clean": "rimraf dist",
-    "precommit": "npm run lint:js && npm run format && npm run validate:html"
+    "precommit": "npm run lint:js && npm run format && npm run validate:html",
+    "deploy": "firebase deploy",
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:firestore": "firebase deploy --only firestore"
   },
   "dependencies": {
     "cors": "^2.8.5",
