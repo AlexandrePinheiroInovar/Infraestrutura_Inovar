@@ -17,8 +17,19 @@ const firebaseConfig = {
 
 // Inicializar Firebase quando disponível
 function initializeFirebase() {
+    console.log('🔥 Verificando Firebase...');
+    
     if (typeof firebase !== 'undefined') {
-        firebase.initializeApp(firebaseConfig);
+        console.log('✅ Firebase CDN carregado');
+        
+        try {
+            firebase.initializeApp(firebaseConfig);
+            console.log('✅ Firebase App inicializado');
+        } catch (error) {
+            console.error('❌ Erro ao inicializar Firebase App:', error);
+            initializeLocalServices();
+            return;
+        }
         
         // Criar serviços Firebase inline
         authService = {
@@ -33,16 +44,43 @@ function initializeFirebase() {
             
             async register(email, password, userData = {}) {
                 try {
+                    console.log('🔥 Tentando criar usuário no Firebase:', email);
+                    
+                    // Verificar se Firebase Auth está disponível
+                    if (!firebase.auth()) {
+                        throw new Error('Firebase Auth não está configurado');
+                    }
+                    
                     const result = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    console.log('✅ Usuário criado no Firebase Auth:', result.user.uid);
+                    
                     // Salvar dados do usuário no Firestore
-                    await firebase.firestore().collection('users').doc(result.user.uid).set({
-                        ...userData,
-                        email: email,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                    try {
+                        await firebase.firestore().collection('users').doc(result.user.uid).set({
+                            ...userData,
+                            email: email,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        console.log('✅ Dados do usuário salvos no Firestore');
+                    } catch (firestoreError) {
+                        console.warn('⚠️ Erro ao salvar no Firestore (usuário criado no Auth):', firestoreError);
+                    }
+                    
                     return { success: true, user: result.user };
                 } catch (error) {
-                    return { success: false, error: error.message };
+                    console.error('❌ Erro detalhado no registro:', error);
+                    
+                    // Traduzir erros comuns do Firebase
+                    let errorMessage = error.message;
+                    if (error.code === 'auth/email-already-in-use') {
+                        errorMessage = 'Este email já está em uso. Tente fazer login.';
+                    } else if (error.code === 'auth/weak-password') {
+                        errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
+                    } else if (error.code === 'auth/invalid-email') {
+                        errorMessage = 'Email inválido.';
+                    }
+                    
+                    return { success: false, error: errorMessage };
                 }
             },
             
@@ -86,6 +124,8 @@ function initializeFirebase() {
         };
         
         console.log('✅ Firebase inicializado com sucesso');
+        console.log('🔐 authService criado:', !!authService);
+        console.log('📊 enderecosService criado:', !!enderecosService);
     } else {
         console.warn('⚠️ Firebase não encontrado, usando modo local');
         // Fallback para funcionamento local
@@ -95,6 +135,10 @@ function initializeFirebase() {
     // Expor serviços globalmente para compatibilidade
     window.authService = authService;
     window.enderecosService = enderecosService;
+    
+    console.log('🌐 Serviços expostos globalmente');
+    console.log('🔐 window.authService:', !!window.authService);
+    console.log('📊 window.enderecosService:', !!window.enderecosService);
 }
 
 // Serviços locais para fallback
@@ -1667,6 +1711,17 @@ function initializeRegister() {
         }
         
         try {
+            console.log('🚀 Iniciando processo de registro...');
+            console.log('📧 Email:', email);
+            console.log('👤 Nome:', firstName, lastName);
+            
+            // Verificar se authService está disponível
+            if (!authService) {
+                console.error('❌ authService não está disponível');
+                alert('Erro: Sistema de autenticação não está configurado. Tente recarregar a página.');
+                return;
+            }
+            
             // Registro usando Firebase Auth
             const userData = {
                 firstName: firstName,
@@ -1674,7 +1729,9 @@ function initializeRegister() {
                 fullName: `${firstName} ${lastName}`
             };
             
+            console.log('📝 Chamando authService.register...');
             const result = await authService.register(email, password, userData);
+            console.log('📝 Resultado do registro:', result);
             
             if (result.success) {
                 console.log('✅ Registro realizado com sucesso');
@@ -1687,8 +1744,8 @@ function initializeRegister() {
                 alert('Erro no registro: ' + result.error);
             }
         } catch (error) {
-            console.error('❌ Erro no registro:', error);
-            alert('Erro no registro. Tente novamente.');
+            console.error('❌ Erro inesperado no registro:', error);
+            alert('Erro inesperado no registro: ' + error.message);
         }
     });
 }

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Firebase Auth</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        input, button { margin: 10px 0; padding: 10px; width: 100%; }
+        .result { margin-top: 20px; padding: 10px; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Teste Firebase Auth</h1>
+        
+        <form id="testRegisterForm">
+            <h3>Cadastrar Usuário</h3>
+            <input type="email" id="testEmail" placeholder="Email" required>
+            <input type="password" id="testPassword" placeholder="Senha (min 6 chars)" required>
+            <button type="submit">Cadastrar</button>
+        </form>
+        
+        <form id="testLoginForm">
+            <h3>Login</h3>
+            <input type="email" id="loginEmail" placeholder="Email" required>
+            <input type="password" id="loginPassword" placeholder="Senha" required>
+            <button type="submit">Login</button>
+        </form>
+        
+        <button onclick="testFirebaseStatus()">Testar Status Firebase</button>
+        <button onclick="checkAuth()">Verificar Usuário Logado</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <!-- Firebase CDN -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <script>
+        // Configuração Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB6JMscG7PmcJbbNRJlxAgXnbJqPXBbWfQ",
+            authDomain: "infraestrutura-inovar.firebaseapp.com",
+            projectId: "infraestrutura-inovar",
+            storageBucket: "infraestrutura-inovar.firebasestorage.app",
+            messagingSenderId: "365911816619",
+            appId: "1:365911816619:web:271ac3bdbd37b58be4faee",
+            measurementId: "G-7FBZ35DPFS"
+        };
+
+        // Inicializar Firebase
+        let app, auth, db;
+        
+        function showResult(message, isError = false) {
+            const result = document.getElementById('result');
+            result.className = `result ${isError ? 'error' : 'success'}`;
+            result.innerHTML = message;
+            console.log(message);
+        }
+
+        function testFirebaseStatus() {
+            console.log('🔥 Testando Firebase...');
+            
+            if (typeof firebase === 'undefined') {
+                showResult('❌ Firebase CDN não carregado', true);
+                return;
+            }
+            
+            try {
+                app = firebase.initializeApp(firebaseConfig);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                
+                showResult(`✅ Firebase inicializado com sucesso!<br>
+                    - App: ${!!app}<br>
+                    - Auth: ${!!auth}<br>
+                    - Firestore: ${!!db}`);
+            } catch (error) {
+                showResult(`❌ Erro ao inicializar Firebase: ${error.message}`, true);
+            }
+        }
+
+        function checkAuth() {
+            if (!auth) {
+                showResult('❌ Firebase Auth não inicializado', true);
+                return;
+            }
+            
+            const user = auth.currentUser;
+            if (user) {
+                showResult(`✅ Usuário logado: ${user.email} (UID: ${user.uid})`);
+            } else {
+                showResult('ℹ️ Nenhum usuário logado');
+            }
+        }
+
+        // Cadastro
+        document.getElementById('testRegisterForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!auth) {
+                showResult('❌ Firebase Auth não inicializado. Clique em "Testar Status Firebase" primeiro.', true);
+                return;
+            }
+            
+            const email = document.getElementById('testEmail').value;
+            const password = document.getElementById('testPassword').value;
+            
+            try {
+                showResult('🔄 Criando usuário...');
+                const result = await auth.createUserWithEmailAndPassword(email, password);
+                
+                showResult(`✅ Usuário criado com sucesso!<br>
+                    Email: ${result.user.email}<br>
+                    UID: ${result.user.uid}`);
+                    
+                // Limpar formulário
+                document.getElementById('testRegisterForm').reset();
+                
+            } catch (error) {
+                console.error('Erro detalhado:', error);
+                let message = error.message;
+                
+                if (error.code === 'auth/email-already-in-use') {
+                    message = 'Este email já está em uso.';
+                } else if (error.code === 'auth/weak-password') {
+                    message = 'A senha deve ter pelo menos 6 caracteres.';
+                } else if (error.code === 'auth/invalid-email') {
+                    message = 'Email inválido.';
+                }
+                
+                showResult(`❌ Erro no cadastro: ${message}`, true);
+            }
+        });
+
+        // Login
+        document.getElementById('testLoginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!auth) {
+                showResult('❌ Firebase Auth não inicializado. Clique em "Testar Status Firebase" primeiro.', true);
+                return;
+            }
+            
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                showResult('🔄 Fazendo login...');
+                const result = await auth.signInWithEmailAndPassword(email, password);
+                
+                showResult(`✅ Login realizado com sucesso!<br>
+                    Email: ${result.user.email}<br>
+                    UID: ${result.user.uid}`);
+                    
+                // Limpar formulário
+                document.getElementById('testLoginForm').reset();
+                
+            } catch (error) {
+                console.error('Erro detalhado:', error);
+                showResult(`❌ Erro no login: ${error.message}`, true);
+            }
+        });
+
+        // Inicializar automaticamente quando a página carregar
+        window.addEventListener('load', () => {
+            setTimeout(testFirebaseStatus, 1000);
+        });
+    </script>
+</body>
+</html>
