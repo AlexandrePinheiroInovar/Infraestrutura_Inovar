@@ -414,13 +414,22 @@ document.addEventListener('DOMContentLoaded', function() {
         await initializeFirebase();
         
         // Verificar se estamos na página de login
-        if (document.getElementById('loginForm')) {
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        
+        console.log('🔍 Verificando elementos:', {
+            loginForm: !!loginForm,
+            registerForm: !!registerForm
+        });
+        
+        if (loginForm) {
             console.log('📝 Inicializando página de login...');
             initializeLogin();
-        } else if (document.getElementById('registerForm')) {
+        } else if (registerForm) {
             console.log('📝 Inicializando página de registro...');
             initializeRegister();
         } else {
+            console.log('📊 Inicializando dashboard...');
             initializeDashboard();
         }
     }, 500);
@@ -1725,9 +1734,15 @@ function initializeRegister() {
     console.log('📝 Configurando sistema de registro...');
     
     const registerForm = document.getElementById('registerForm');
-    if (!registerForm) return;
+    if (!registerForm) {
+        console.error('❌ Formulário de registro não encontrado!');
+        return;
+    }
+    
+    console.log('✅ Formulário de registro encontrado:', registerForm);
     
     registerForm.addEventListener('submit', async function(e) {
+        console.log('🔥 BOTÃO CRIAR CONTA CLICADO!');
         e.preventDefault();
         
         const firstName = document.getElementById('firstName').value;
@@ -1736,6 +1751,7 @@ function initializeRegister() {
         const password = document.getElementById('password').value;
         const confirmPassword = document.getElementById('confirmPassword').value;
         
+        console.log('📝 Dados do formulário:', {firstName, lastName, email, password: '***'});
         console.log('📝 Tentativa de registro:', email);
         
         // Validações
@@ -1799,6 +1815,8 @@ function initializeRegister() {
             alert('Erro inesperado no registro: ' + error.message);
         }
     });
+    
+    console.log('✅ Event listener de registro adicionado com sucesso');
 }
 
 // Função para fazer logout
