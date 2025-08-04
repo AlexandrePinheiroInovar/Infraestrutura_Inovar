@@ -1,8 +1,151 @@
 // Sistema MDU - Versão Completa com Firebase Integration
 console.log('🔧 Carregando script completo...');
 
-// Importar serviços Firebase
-import { authService, enderecosService, gestaoService, statsService, importExportService } from './firebase-service.js';
+// Firebase será carregado via CDN e inicializado inline
+let authService, enderecosService, gestaoService, statsService, importExportService;
+
+// Configuração Firebase inline
+const firebaseConfig = {
+    apiKey: "AIzaSyB6JMscG7PmcJbbNRJlxAgXnbJqPXBbWfQ",
+    authDomain: "infraestrutura-inovar.firebaseapp.com",
+    projectId: "infraestrutura-inovar",
+    storageBucket: "infraestrutura-inovar.firebasestorage.app",
+    messagingSenderId: "365911816619",
+    appId: "1:365911816619:web:271ac3bdbd37b58be4faee",
+    measurementId: "G-7FBZ35DPFS"
+};
+
+// Inicializar Firebase quando disponível
+function initializeFirebase() {
+    if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        
+        // Criar serviços Firebase inline
+        authService = {
+            async login(email, password) {
+                try {
+                    const result = await firebase.auth().signInWithEmailAndPassword(email, password);
+                    return { success: true, user: result.user };
+                } catch (error) {
+                    return { success: false, error: error.message };
+                }
+            },
+            
+            async register(email, password, userData = {}) {
+                try {
+                    const result = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    // Salvar dados do usuário no Firestore
+                    await firebase.firestore().collection('users').doc(result.user.uid).set({
+                        ...userData,
+                        email: email,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return { success: true, user: result.user };
+                } catch (error) {
+                    return { success: false, error: error.message };
+                }
+            },
+            
+            async logout() {
+                try {
+                    await firebase.auth().signOut();
+                    return { success: true };
+                } catch (error) {
+                    return { success: false, error: error.message };
+                }
+            }
+        };
+        
+        enderecosService = {
+            async getAll() {
+                try {
+                    const snapshot = await firebase.firestore().collection('enderecos')
+                        .orderBy('createdAt', 'desc').get();
+                    const enderecos = [];
+                    snapshot.forEach(doc => {
+                        enderecos.push({ id: doc.id, ...doc.data() });
+                    });
+                    return { success: true, data: enderecos };
+                } catch (error) {
+                    return { success: false, error: error.message };
+                }
+            },
+            
+            async add(endereco) {
+                try {
+                    const docRef = await firebase.firestore().collection('enderecos').add({
+                        ...endereco,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return { success: true, id: docRef.id };
+                } catch (error) {
+                    return { success: false, error: error.message };
+                }
+            }
+        };
+        
+        console.log('✅ Firebase inicializado com sucesso');
+    } else {
+        console.warn('⚠️ Firebase não encontrado, usando modo local');
+        // Fallback para funcionamento local
+        initializeLocalServices();
+    }
+    
+    // Expor serviços globalmente para compatibilidade
+    window.authService = authService;
+    window.enderecosService = enderecosService;
+}
+
+// Serviços locais para fallback
+function initializeLocalServices() {
+    authService = {
+        async login(email, password) {
+            // Simulação local
+            if (email && password) {
+                sessionStorage.setItem('mdu_logged_in', 'true');
+                sessionStorage.setItem('mdu_user', email);
+                return { success: true, user: { email } };
+            }
+            return { success: false, error: 'Credenciais inválidas' };
+        },
+        
+        async register(email, password, userData = {}) {
+            // Simulação local
+            if (email && password) {
+                localStorage.setItem('mdu_registered_' + email, JSON.stringify({email, ...userData}));
+                return { success: true, user: { email } };
+            }
+            return { success: false, error: 'Dados inválidos' };
+        },
+        
+        async logout() {
+            sessionStorage.removeItem('mdu_logged_in');
+            sessionStorage.removeItem('mdu_user');
+            return { success: true };
+        }
+    };
+    
+    enderecosService = {
+        async getAll() {
+            const data = JSON.parse(localStorage.getItem('mdu_enderecos') || '[]');
+            return { success: true, data };
+        },
+        
+        async add(endereco) {
+            const enderecos = JSON.parse(localStorage.getItem('mdu_enderecos') || '[]');
+            const novoEndereco = {
+                id: Date.now().toString(),
+                ...endereco,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            enderecos.push(novoEndereco);
+            localStorage.setItem('mdu_enderecos', JSON.stringify(enderecos));
+            return { success: true, id: novoEndereco.id };
+        }
+    };
+}
 
 // ========== SISTEMA DE NOTIFICAÇÕES PERSONALIZADO ==========
 function showNotification(title, message, type = 'success', showCancel = false, onConfirm = null, onCancel = null) {
@@ -185,6 +328,9 @@ if (!window.requestIdleCallback) {
 // ÚNICO event listener DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DOM carregado...');
+    
+    // Inicializar Firebase primeiro
+    initializeFirebase();
     
     // Verificar se estamos na página de login
     if (document.getElementById('loginForm')) {
@@ -15335,3 +15481,87 @@ function updateInfraLastUpdateTime() {
 }
 
 // Inicialização já está sendo feita no DOMContentLoaded acima
+
+// ========== FUNÇÕES GLOBAIS ESSENCIAIS ==========
+// Expor funções essenciais globalmente para compatibilidade com onclick
+
+// Função para toggle de seção que funciona sempre
+window.showSection = function(sectionId, event) {
+    if (event) event.preventDefault();
+    
+    console.log('🔄 Tentando mostrar seção:', sectionId);
+    
+    // Atualizar menu ativo
+    document.querySelectorAll('.sidebar-menu a').forEach(link => {
+        link.classList.remove('active');
+    });
+    
+    if (event && event.target) {
+        event.target.classList.add('active');
+    }
+    
+    // Mostrar seção
+    document.querySelectorAll('[id$="-section"]').forEach(section => {
+        section.style.display = 'none';
+    });
+    
+    const targetSection = document.getElementById(sectionId + '-section');
+    if (targetSection) {
+        targetSection.style.display = 'block';
+        activeSection = sectionId;
+        console.log('✅ Seção ativada:', sectionId);
+    } else {
+        console.warn('⚠️ Seção não encontrada:', sectionId + '-section');
+    }
+};
+
+// Função para toggle de password que funciona sempre
+window.togglePassword = function(inputId) {
+    console.log('👁️ Toggle password para:', inputId);
+    try {
+        const input = document.getElementById(inputId);
+        const button = input.nextElementSibling;
+        const icon = button.querySelector('i');
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    } catch (error) {
+        console.error('❌ Erro no toggle password:', error);
+    }
+};
+
+// Função para toggle do dropdown do usuário
+window.toggleNewDropdown = function() {
+    console.log('👤 Toggle dropdown usuário');
+    try {
+        const dropdown = document.getElementById('newUserDropdown');
+        const menu = dropdown.querySelector('.user-dropdown-menu');
+        
+        if (menu.style.display === 'block') {
+            menu.style.display = 'none';
+        } else {
+            menu.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('❌ Erro no toggle dropdown:', error);
+    }
+};
+
+// Expor funções de notificação
+window.showNotification = showNotification;
+window.hideNotification = hideNotification;
+window.showSuccess = showSuccess;
+window.showError = showError;
+window.showWarning = showWarning;
+window.showInfo = showInfo;
+window.showConfirm = showConfirm;
+
+console.log('🌐 Funções globais configuradas');
+console.log('🚀 Sistema MDU carregado completamente');
