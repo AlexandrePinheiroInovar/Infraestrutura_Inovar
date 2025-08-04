@@ -4,6 +4,30 @@ console.log('🔧 Carregando script completo...');
 // Firebase será carregado via CDN e inicializado inline
 let authService, enderecosService, gestaoService, statsService, importExportService;
 
+// Função para aguardar Firebase estar pronto
+function waitForFirebase(maxAttempts = 10) {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+        
+        const checkFirebase = () => {
+            attempts++;
+            console.log(`🔥 Tentativa ${attempts} de verificar Firebase...`);
+            
+            if (typeof firebase !== 'undefined' && firebase.auth && firebase.firestore) {
+                console.log('✅ Firebase completamente carregado');
+                resolve(true);
+            } else if (attempts >= maxAttempts) {
+                console.error('❌ Firebase não carregou após', maxAttempts, 'tentativas');
+                reject(new Error('Firebase não carregou'));
+            } else {
+                setTimeout(checkFirebase, 200);
+            }
+        };
+        
+        checkFirebase();
+    });
+}
+
 // Configuração Firebase inline
 const firebaseConfig = {
     apiKey: "AIzaSyB6JMscG7PmcJbbNRJlxAgXnbJqPXBbWfQ",
@@ -16,15 +40,21 @@ const firebaseConfig = {
 };
 
 // Inicializar Firebase quando disponível
-function initializeFirebase() {
+async function initializeFirebase() {
     console.log('🔥 Verificando Firebase...');
     
-    if (typeof firebase !== 'undefined') {
+    try {
+        await waitForFirebase();
         console.log('✅ Firebase CDN carregado');
         
         try {
-            firebase.initializeApp(firebaseConfig);
-            console.log('✅ Firebase App inicializado');
+            // Verificar se já foi inicializado
+            if (firebase.apps.length === 0) {
+                firebase.initializeApp(firebaseConfig);
+                console.log('✅ Firebase App inicializado');
+            } else {
+                console.log('✅ Firebase App já estava inicializado');
+            }
         } catch (error) {
             console.error('❌ Erro ao inicializar Firebase App:', error);
             initializeLocalServices();
@@ -126,19 +156,24 @@ function initializeFirebase() {
         console.log('✅ Firebase inicializado com sucesso');
         console.log('🔐 authService criado:', !!authService);
         console.log('📊 enderecosService criado:', !!enderecosService);
-    } else {
-        console.warn('⚠️ Firebase não encontrado, usando modo local');
-        // Fallback para funcionamento local
+        
+        // Expor serviços globalmente para compatibilidade
+        window.authService = authService;
+        window.enderecosService = enderecosService;
+        
+        console.log('🌐 Serviços expostos globalmente');
+        console.log('🔐 window.authService:', !!window.authService);
+        console.log('📊 window.enderecosService:', !!window.enderecosService);
+        
+    } catch (error) {
+        console.error('❌ Erro ao aguardar Firebase:', error);
+        console.warn('⚠️ Usando modo local como fallback');
         initializeLocalServices();
+        
+        // Expor serviços locais globalmente
+        window.authService = authService;
+        window.enderecosService = enderecosService;
     }
-    
-    // Expor serviços globalmente para compatibilidade
-    window.authService = authService;
-    window.enderecosService = enderecosService;
-    
-    console.log('🌐 Serviços expostos globalmente');
-    console.log('🔐 window.authService:', !!window.authService);
-    console.log('📊 window.enderecosService:', !!window.enderecosService);
 }
 
 // Serviços locais para fallback
@@ -373,33 +408,42 @@ if (!window.requestIdleCallback) {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DOM carregado...');
     
-    // Inicializar Firebase primeiro
-    initializeFirebase();
-    
-    // Verificar se estamos na página de login
-    if (document.getElementById('loginForm')) {
-        console.log('📝 Inicializando página de login...');
-        initializeLogin();
-    } else if (document.getElementById('registerForm')) {
-        console.log('📝 Inicializando página de registro...');
-        initializeRegister();
-    } else {
-        console.log('📊 Inicializando dashboard...');
+    // Aguardar um pouco para garantir que Firebase CDN carregou
+    setTimeout(async () => {
+        // Inicializar Firebase primeiro
+        await initializeFirebase();
         
-        // Configurar event listeners globais primeiro
-        setupGlobalEventListeners();
-        
-        // Inicializar dashboard
-        initializeDashboard();
-        
-        // Inicializar analytics quando necessário (se implementado)
-        setTimeout(() => {
-            if (document.getElementById('analytics')) {
-                console.log('📊 Analytics detectado, mas não implementado ainda');
-            }
-        }, 1000);
-    }
+        // Verificar se estamos na página de login
+        if (document.getElementById('loginForm')) {
+            console.log('📝 Inicializando página de login...');
+            initializeLogin();
+        } else if (document.getElementById('registerForm')) {
+            console.log('📝 Inicializando página de registro...');
+            initializeRegister();
+        } else {
+            initializeDashboard();
+        }
+    }, 500);
 });
+
+function initializeDashboard() {
+    console.log('📊 Inicializando dashboard...');
+    
+    // Configurar event listeners globais primeiro
+    setupGlobalEventListeners();
+    
+    // Inicializar seções do dashboard
+    console.log('🔄 Configurando seções do dashboard...');
+    
+    // Inicializar analytics quando necessário (se implementado)
+    setTimeout(() => {
+        if (document.getElementById('analytics')) {
+            console.log('📊 Analytics detectado, mas não implementado ainda');
+        }
+    }, 1000);
+    
+    console.log('✅ Dashboard inicializado');
+}
 
 // Configurar event listeners globais
 function setupGlobalEventListeners() {
@@ -1719,6 +1763,13 @@ function initializeRegister() {
             if (!authService) {
                 console.error('❌ authService não está disponível');
                 alert('Erro: Sistema de autenticação não está configurado. Tente recarregar a página.');
+                return;
+            }
+            
+            // Verificar se Firebase Auth está realmente disponível
+            if (typeof firebase !== 'undefined' && firebase.auth && !firebase.auth()) {
+                console.error('❌ Firebase Auth não está configurado');
+                alert('Erro: Firebase Auth não está funcionando. Verifique a configuração.');
                 return;
             }
             
