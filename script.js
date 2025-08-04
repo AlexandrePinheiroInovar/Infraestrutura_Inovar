@@ -1,5 +1,8 @@
-// Sistema MDU - Versão Completa com Todas as Funcionalidades
+// Sistema MDU - Versão Completa com Firebase Integration
 console.log('🔧 Carregando script completo...');
+
+// Importar serviços Firebase
+import { authService, enderecosService, gestaoService, statsService, importExportService } from './firebase-service.js';
 
 // ========== SISTEMA DE NOTIFICAÇÕES PERSONALIZADO ==========
 function showNotification(title, message, type = 'success', showCancel = false, onConfirm = null, onCancel = null) {
@@ -187,6 +190,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('loginForm')) {
         console.log('📝 Inicializando página de login...');
         initializeLogin();
+    } else if (document.getElementById('registerForm')) {
+        console.log('📝 Inicializando página de registro...');
+        initializeRegister();
     } else {
         console.log('📊 Inicializando dashboard...');
         
@@ -1439,7 +1445,7 @@ function initializeLogin() {
     const loginForm = document.getElementById('loginForm');
     if (!loginForm) return;
     
-    loginForm.addEventListener('submit', function(e) {
+    loginForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
         const username = document.getElementById('username').value;
@@ -1448,23 +1454,27 @@ function initializeLogin() {
         
         console.log('🔑 Tentativa de login:', username);
         
-        // Validação simples (você pode implementar validação mais robusta)
-        if (username && password) {
-            // Salvar dados de sessão se "lembrar de mim" estiver marcado
-            if (remember) {
-                localStorage.setItem('mdu_user', username);
+        try {
+            // Login usando Firebase Auth
+            const result = await authService.login(username, password);
+            
+            if (result.success) {
+                // Salvar dados de sessão se "lembrar de mim" estiver marcado
+                if (remember) {
+                    localStorage.setItem('mdu_user', username);
+                }
+                
+                console.log('✅ Login realizado com sucesso');
+                
+                // Redirecionar para dashboard
+                window.location.href = 'dashboard.html';
+            } else {
+                console.error('❌ Erro no login:', result.error);
+                alert('Erro no login: ' + result.error);
             }
-            
-            // Salvar sessão atual
-            sessionStorage.setItem('mdu_logged_in', 'true');
-            sessionStorage.setItem('mdu_user', username);
-            
-            console.log('✅ Login realizado com sucesso');
-            
-            // Redirecionar para dashboard
-            window.location.href = 'dashboard.html';
-        } else {
-            alert('Por favor, preencha usuário e senha.');
+        } catch (error) {
+            console.error('❌ Erro no login:', error);
+            alert('Erro no login. Verifique suas credenciais.');
         }
     });
     
@@ -1474,6 +1484,67 @@ function initializeLogin() {
         document.getElementById('username').value = savedUser;
         document.getElementById('remember').checked = true;
     }
+}
+
+// Inicializar funcionalidade de registro
+function initializeRegister() {
+    console.log('📝 Configurando sistema de registro...');
+    
+    const registerForm = document.getElementById('registerForm');
+    if (!registerForm) return;
+    
+    registerForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const firstName = document.getElementById('firstName').value;
+        const lastName = document.getElementById('lastName').value;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        
+        console.log('📝 Tentativa de registro:', email);
+        
+        // Validações
+        if (!firstName || !lastName || !email || !password || !confirmPassword) {
+            alert('Por favor, preencha todos os campos.');
+            return;
+        }
+        
+        if (password !== confirmPassword) {
+            alert('As senhas não coincidem.');
+            return;
+        }
+        
+        if (password.length < 6) {
+            alert('A senha deve ter pelo menos 6 caracteres.');
+            return;
+        }
+        
+        try {
+            // Registro usando Firebase Auth
+            const userData = {
+                firstName: firstName,
+                lastName: lastName,
+                fullName: `${firstName} ${lastName}`
+            };
+            
+            const result = await authService.register(email, password, userData);
+            
+            if (result.success) {
+                console.log('✅ Registro realizado com sucesso');
+                alert('Conta criada com sucesso! Você pode fazer login agora.');
+                
+                // Redirecionar para página de login
+                window.location.href = 'index.html';
+            } else {
+                console.error('❌ Erro no registro:', result.error);
+                alert('Erro no registro: ' + result.error);
+            }
+        } catch (error) {
+            console.error('❌ Erro no registro:', error);
+            alert('Erro no registro. Tente novamente.');
+        }
+    });
 }
 
 // Função para fazer logout
